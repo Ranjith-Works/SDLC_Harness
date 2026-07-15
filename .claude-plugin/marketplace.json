@@ -1,0 +1,20 @@
+{
+  "name": "sdlc-harness",
+  "owner": {
+    "name": "Ranjith-Works",
+    "url": "https://github.com/Ranjith-Works"
+  },
+  "metadata": {
+    "description": "Marketplace hosting the sdlc SDLC-harness plugin for Claude Code.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "sdlc",
+      "source": "./",
+      "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> TRD -> Implementation -> Tests -> weighted-eval Review, with file artifacts, human tollgates, sub-agents, hooks, and a runnable scorer.",
+      "version": "1.0.0",
+      "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline"]
+    }
+  ]
+}
