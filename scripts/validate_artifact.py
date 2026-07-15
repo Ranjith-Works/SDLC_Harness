@@ -85,11 +85,41 @@ def content_under_headings(text: str) -> bool:
     return False
 
 
+def content_rules(kind: str, text: str) -> list[dict]:
+    """Deterministic per-kind content checks, each a Boolean {rule, pass}. Mechanical: these
+    verify the artifact carries the traceable structure the pipeline depends on."""
+    def has(pattern):
+        return bool(re.search(pattern, text, re.I))
+
+    if kind == "prd":
+        return [
+            {"rule": "declares numbered functional requirements (FR-#)", "pass": has(r"FR-\d+")},
+        ]
+    if kind == "stories":
+        return [
+            {"rule": "declares user stories (US-#)", "pass": has(r"US-\d+")},
+            {"rule": "stories trace to requirements (Traces to: FR-#)", "pass": has(r"traces to")},
+            {"rule": "has Given/When/Then acceptance criteria", "pass": has(r"given") and has(r"when") and has(r"then")},
+        ]
+    if kind == "trd":
+        return [
+            {"rule": "has a Story -> Implementation map", "pass": has(r"story\s*->|story\s*to\s*impl|implementation map")},
+            {"rule": "references user stories (US-#)", "pass": has(r"US-\d+")},
+            {"rule": "specifies a test command/strategy", "pass": has(r"test")},
+        ]
+    if kind == "review":
+        return [
+            {"rule": "states a PASS/FAIL verdict", "pass": has(r"\bPASS\b|\bFAIL\b")},
+        ]
+    return []
+
+
 def validate(path: str, kind: str | None) -> dict:
     with open(path, "r", encoding="utf-8-sig") as f:
         text = f.read()
     kind = kind or detect_kind(path)
-    result = {"path": path, "kind": kind, "valid": True, "missing": [], "warnings": []}
+    result = {"path": path, "kind": kind, "valid": True, "missing": [],
+              "rules": [], "rule_failures": [], "warnings": []}
 
     if kind is None or kind not in REQUIRED:
         result["warnings"].append("unknown artifact kind; skipped section checks")
@@ -100,7 +130,10 @@ def validate(path: str, kind: str | None) -> dict:
         if norm(req) not in present:
             result["missing"].append(req)
 
-    if result["missing"]:
+    result["rules"] = content_rules(kind, text)
+    result["rule_failures"] = [r["rule"] for r in result["rules"] if not r["pass"]]
+
+    if result["missing"] or result["rule_failures"]:
         result["valid"] = False
     if not content_under_headings(text):
         result["valid"] = False

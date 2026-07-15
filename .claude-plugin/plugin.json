@@ -1,9 +1,9 @@
 {
   "name": "sdlc",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> TRD -> Implementation -> Tests -> weighted-eval Review, with file artifacts, human tollgates, sub-agents, hooks, and a runnable scorer.",
   "author": { "name": "Ranjith-Works" },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "homepage": "https://github.com/Ranjith-Works/SDLC_Harness",
   "repository": "https://github.com/Ranjith-Works/SDLC_Harness",
   "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline"]

@@ -8,10 +8,19 @@ description: Run the weighted eval harness (scripts/eval_harness.py) plus the re
 ## Preconditions
 - `gates.test: approved` in `harness/STATE.md`.
 
+## Determinism model (what this stage optimizes)
+The score is split so most of it is mechanical and the rest is reproducible:
+- **Mechanical (deterministic, ~70 pts):** tests pass-rate, **test coverage %**, **traceability**
+  (computed by `scripts/trace_check.py` — FR→US→TRD ID linkage), complexity, security, secrets.
+- **LLM-judged (~30 pts), as Boolean checklists:** the reviewer answers atomic yes/no questions
+  with evidence; the scorer aggregates each criterion as (yes ÷ total). No holistic floats.
+
 ## Steps
-1. Dispatch the **reviewer** sub-agent first. It judges requirements coverage, traceability,
-   and readability, checks for hallucinated/invented APIs and policy issues, and writes
-   `harness/reviewer.json`.
+1. Dispatch the **reviewer** sub-agent first. It produces two Boolean checklists in
+   `harness/reviewer.json`: a **Functional review** (per-FR implemented?, per-AC tested?) and a
+   **Technical review** (single-purpose functions?, no hallucinated APIs?, errors handled?,
+   conventions matched?, no security smell?, no secrets/PII?). Each item is `answer: true/false`
+   + `evidence`. It does NOT score traceability (now mechanical) or emit floats.
 2. Run the deterministic scorer (hand the user the exact command if sandbox Python fails):
    `python <plugin>/scripts/eval_harness.py --target "<target>" --src "<code-dir>" --json`
    It reads `reviewer.json`, STATE.md `stack:`, and (if present) `harness/eval.config.json`

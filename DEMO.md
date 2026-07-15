@@ -1,4 +1,4 @@
-# SDLC Harness — VP Walkthrough
+# SDLC Harness — Walkthrough
 
 This ties the `sdlc` plugin to two worked, end-to-end runs. The point: a **reusable harness**
 that drives *any* project through PRD → Stories → TRD → Code → Tests → weighted-eval Review,

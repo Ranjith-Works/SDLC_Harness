@@ -40,10 +40,13 @@ def main():
         try:
             data = json.loads(proc.stdout)
             missing = data.get("missing", [])
+            rule_failures = data.get("rule_failures", [])
             warns = data.get("warnings", [])
             msg = f"[sdlc] Artifact {base} may be incomplete."
             if missing:
                 msg += f" Missing sections: {', '.join(missing)}."
+            if rule_failures:
+                msg += f" Failed content checks: {', '.join(rule_failures)}."
             if warns:
                 msg += f" {' '.join(warns)}"
             print(msg, file=sys.stderr)

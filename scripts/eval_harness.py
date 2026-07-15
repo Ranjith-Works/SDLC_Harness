@@ -28,14 +28,19 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-# criterion key -> (label, weight, is_hard_gate_source)
+import trace_check  # local module (same scripts/ dir) — mechanical traceability
+
+# criterion key -> (label, weight). Mechanical criteria (tests, testcov, traceability,
+# quality, security, secrets = 70 pts) are deterministic. LLM-judged criteria (functional,
+# readability = 30 pts) come from reviewer.json as Boolean checklists aggregated to yes/total.
 WEIGHTS = [
-    ("tests", "Tests pass rate", 25),
-    ("coverage", "Requirements coverage", 20),
-    ("quality", "Code quality / complexity", 15),
+    ("tests", "Tests pass rate", 20),
+    ("testcov", "Test coverage", 10),
+    ("functional", "Functional review (requirements)", 20),
+    ("traceability", "Traceability (mechanical)", 10),
+    ("quality", "Code quality / complexity", 10),
     ("security", "Security scan", 15),
-    ("traceability", "Traceability", 10),
-    ("readability", "Readability / conventions", 10),
+    ("readability", "Technical review (readability)", 10),
     ("secrets", "No secrets / PII", 5),
 ]
 PASS_THRESHOLD = 80
@@ -47,6 +52,9 @@ PASS_THRESHOLD = 80
 BUILTIN_TOOLCHAINS = {
     "python": {
         "test": {"cmd": "pytest -q", "pass_regex": r"(\d+)\s+passed", "fail_regex": r"(\d+)\s+failed"},
+        "coverage": {"kind": "coverage-py",
+                     "cmd": "pytest --cov={src} --cov-report=json:harness/coverage.json -q",
+                     "report": "harness/coverage.json"},
         "complexity": {"kind": "radon"},
         "security": {"kind": "bandit", "hard_gate": True},
     },
@@ -56,7 +64,7 @@ BUILTIN_TOOLCHAINS = {
         "security": {"kind": "npm-audit", "hard_gate": True},
     },
 }
-_TOOL_KEYS = ("test", "complexity", "security")
+_TOOL_KEYS = ("test", "coverage", "complexity", "security")
 
 SECRET_PATTERNS = [
     (r"AKIA[0-9A-Z]{16}", "AWS access key id"),
@@ -86,6 +94,11 @@ def run(cmd, cwd):
 def tool_exists(name):
     from shutil import which
     return which(name) is not None
+
+
+def _render(cmd, src):
+    """Substitute the {src} placeholder in a configured command."""
+    return cmd.replace("{src}", src) if isinstance(cmd, str) else cmd
 
 
 def iter_source_files(src, exts):
@@ -171,6 +184,35 @@ def score_tests(target, spec):
         frac = passed / total
         detail = f"{passed}/{total} passed"
     return {"frac": frac, "detail": detail}
+
+
+def score_coverage(target, src, spec):
+    kind = spec.get("kind")
+    cmd = spec.get("cmd")
+    if kind == "coverage-py":
+        if not tool_exists("pytest"):
+            return {"frac": 0.0, "detail": "pytest not installed", "skipped": True}
+        run(_render(cmd, src), target)  # runs the suite under coverage; writes the json report
+        report = os.path.join(target, spec.get("report", "harness/coverage.json"))
+        try:
+            with open(report, encoding="utf-8-sig") as f:
+                data = json.load(f)
+            pct = data.get("totals", {}).get("percent_covered")
+            if pct is None:
+                raise ValueError("no percent_covered")
+            return {"frac": max(0.0, min(1.0, pct / 100.0)), "detail": f"{pct:.0f}% lines covered"}
+        except Exception:
+            return {"frac": 0.0, "detail": "coverage report unparsable (install pytest-cov?)", "skipped": True}
+    if cmd:
+        return {"frac": 0.0, "detail": "coverage tool kind not recognized", "skipped": True}
+    return {"frac": 0.0, "detail": "no coverage tool configured", "skipped": True}
+
+
+def score_traceability(target):
+    r = trace_check.check(target)
+    if r.get("skipped"):
+        return {"frac": 0.0, "detail": "no PRD/stories to trace", "skipped": True}
+    return {"frac": r["frac"], "detail": r["detail"]}
 
 
 def _score_exit_code(target, cmd, hard_gate=False):
@@ -284,23 +326,37 @@ def read_reviewer(target):
 
 # ---------------- orchestration ----------------
 
+def _rev_checklist(reviewer, key, legacy_key):
+    """Score an LLM criterion from a Boolean checklist (yes / total). The reviewer emits only
+    booleans + evidence, so the number is a deterministic aggregation, not a holistic guess.
+    Falls back to a legacy holistic float if that's what reviewer.json still contains."""
+    val = reviewer.get(key)
+    if isinstance(val, dict) and isinstance(val.get("checks"), list):
+        checks = val["checks"]
+        total = len(checks)
+        if total == 0:
+            return {"frac": 0.0, "detail": "empty checklist", "skipped": True}
+        yes = sum(1 for c in checks if c.get("answer") is True)
+        return {"frac": yes / total, "detail": f"{yes}/{total} checks pass"}
+    for k in (legacy_key, key):
+        v = reviewer.get(k)
+        if isinstance(v, (int, float)):
+            return {"frac": float(v), "detail": f"reviewer float (legacy): {v}"}
+    return {"frac": 0.0, "detail": "reviewer.json missing this criterion", "skipped": True}
+
+
 def evaluate(target, src, tc):
     reviewer = read_reviewer(target) or {}
     results = {}
 
     results["tests"] = score_tests(target, tc["test"])
+    results["testcov"] = score_coverage(target, src, tc.get("coverage", {}))
     results["quality"] = score_quality(target, src, tc["complexity"])
     results["security"] = score_security(target, src, tc["security"])
     results["secrets"] = score_secrets(target, src)
-
-    def rev(key, label):
-        if key in reviewer:
-            return {"frac": float(reviewer[key]), "detail": f"reviewer: {reviewer[key]}"}
-        return {"frac": 0.0, "detail": "reviewer.json missing this score", "skipped": True}
-
-    results["coverage"] = rev("requirements_coverage", "coverage")
-    results["readability"] = rev("readability", "readability")
-    results["traceability"] = rev("traceability", "traceability")
+    results["traceability"] = score_traceability(target)
+    results["functional"] = _rev_checklist(reviewer, "functional", "requirements_coverage")
+    results["readability"] = _rev_checklist(reviewer, "readability", "readability")
 
     rows, total, hard_failed = [], 0.0, []
     for key, label, weight in WEIGHTS:
@@ -315,9 +371,8 @@ def evaluate(target, src, tc):
 
     total = round(total, 1)
     verdict = "PASS" if (total >= PASS_THRESHOLD and not hard_failed) else "FAIL"
-    # tool-based criteria that were skipped (no tool configured/installed) -> reported loudly
-    skipped = [r["label"] for r in rows
-               if r["skipped"] and r["key"] in ("tests", "quality", "security")]
+    # any criterion that was skipped (no tool/config/reviewer input) -> reported loudly
+    skipped = [r["label"] for r in rows if r["skipped"]]
     return {"verdict": verdict, "total": total, "threshold": PASS_THRESHOLD,
             "hard_gates_failed": hard_failed, "skipped_criteria": skipped, "criteria": rows}
 
