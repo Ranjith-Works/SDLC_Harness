@@ -79,6 +79,31 @@ Either way, these commands become available: `/sdlc:start`, `/sdlc:intake-greenf
 
 Run `/sdlc:gate` after every stage. Nothing advances without your explicit approval.
 
+## Quickstart — from install to meaningful results
+
+**Step 0 — install your stack's tools** (so the scorecard is real):
+`pip install pytest pytest-cov radon bandit` (Python) · `npm i -D eslint` (JS) · any other
+stack → name its test/lint/security commands in `harness/eval.config.json`.
+
+**Step 1 — install the plugin** (in Claude Code, via terminal):
+```
+claude plugin marketplace add Ranjith-Works/SDLC_Harness
+claude plugin install sdlc@sdlc-harness
+```
+
+**Step 2 — run the pipeline on your project:** `/sdlc:start` → walk
+`prd → stories → trd → implement → test → review`, approving each `/sdlc:gate`. Greenfield?
+it interviews you for the stack. Brownfield? it analyzes your repo first (read-only).
+
+**What you end up with** — a `harness/` folder holding a full **spec → design → code → tests**
+trail (traceable by FR/US IDs), and a deterministic **/100 scorecard**: tests pass-rate,
+**coverage %**, requirements coverage, mechanical traceability, security, readability — plus a
+`git commit` that stays **blocked until the review gate passes**.
+
+**One honest note:** the harness *structures and scores* the work and enforces the gates — you
+still approve each stage and answer the intake. It makes engineering judgment traceable and
+reproducible; it doesn't replace it.
+
 ## What ships in the box
 
 ```
@@ -99,7 +124,9 @@ templates/                   PRD, USER-STORIES, TRD, REVIEW section templates
 ├── 00-INTAKE.md        greenfield stack + decisions   (or)
 ├── 00-CODEBASE-MAP.md  brownfield analyzer output
 ├── 01-PRD.md  02-USER-STORIES.md  03-TRD.md  05-TEST-REPORT.md  06-REVIEW.md
-├── reviewer.json       LLM-judged scores (input to the eval)
+├── eval.config.json    (optional) per-stack test/complexity/security commands
+├── reviewer.json       LLM-judged Boolean checklists w/ evidence (input to the eval)
+├── coverage.json       test-coverage report (written during review)
 ├── results.json        versioned eval results (regression baseline)
 └── AUDIT.log           stage/subagent transitions (from hooks)
 ```
@@ -112,21 +139,26 @@ previous `results.json` for **regression**.
 
 | Criterion | Weight | Source | Hard gate |
 |---|---:|---|---|
-| Tests pass rate | 25 | project's test command | |
-| Requirements coverage | 20 | reviewer agent (US↔code/test trace) | |
-| Code quality / complexity | 15 | radon (py) / eslint (js) | |
-| Security scan | 15 | bandit (py) / npm audit (js) | **high severity → FAIL** |
-| Traceability | 10 | validators + reviewer | |
-| Readability / conventions | 10 | reviewer agent | |
+| Tests pass rate | 20 | project's test runner | |
+| Test coverage | 10 | coverage tool (pytest-cov / configurable) | |
+| Functional review (requirements) | 20 | reviewer **Boolean checklist** (per-FR/AC → yes÷total) | |
+| Traceability | 10 | `trace_check.py` — FR→US→TRD ID linkage (**mechanical**) | |
+| Code quality / complexity | 10 | radon (py) / eslint (js) / configurable | |
+| Security scan | 15 | bandit (py) / npm audit (js) / configurable | **high severity → FAIL** |
+| Technical review (readability) | 10 | reviewer **Boolean checklist** (yes÷total) | |
 | No secrets / PII | 5 | pattern scan | **any hit → FAIL** |
+
+**~70 of 100 points are pure mechanical; the other 30 are counts of yes/no review checks with
+evidence** — so the same code yields the same verdict. See [`DETERMINISM.md`](DETERMINISM.md)
+for the full LLM-vs-mechanical map.
 
 ### Works with any stack
 
 - **The pipeline is fully language-agnostic** — the PRD/stories/TRD are Markdown, and code +
   tests are written in whatever language the project uses.
-- **The scorecard is too.** 4 of the 7 criteria (requirements coverage, traceability,
-  readability, secrets/PII = 45 pts) are language-neutral already. The 3 tool-based criteria
-  (tests, complexity, security = 55 pts) are **pluggable**: `python` and `js` are built in, and
+- **The scorecard is too.** 4 of the 8 criteria (functional review, traceability, technical
+  review, secrets/PII = 45 pts) need no stack-specific tools. The 4 tool-based criteria (tests,
+  coverage, complexity, security = 55 pts) are **pluggable**: `python` and `js` are built in, and
   any other stack declares its own tools in an optional **`harness/eval.config.json`**:
 
   ```json
