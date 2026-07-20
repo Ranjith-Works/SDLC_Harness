@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-STAGES = [
+BASE_STAGES = [
     ("intake", "00-INTAKE.md / 00-CODEBASE-MAP.md"),
     ("prd", "01-PRD.md"),
     ("stories", "02-USER-STORIES.md"),
@@ -22,32 +22,44 @@ STAGES = [
     ("test", "05-TEST-REPORT.md"),
     ("review", "06-REVIEW.md"),
 ]
+DESIGN_STAGE = ("design", "04-UX-SPEC.md")   # inserted after `stories` when the project has a UI
+IAC_STAGE = ("iac", "07-DEPLOY.md")          # appended after `review` when there is a deploy target
 
 
-def state_template(mode: str, stack: str, target: str) -> str:
+def build_stages(ui: bool, deploy: bool):
+    """The effective pipeline for this project. Conditional stages (design, iac) are only added
+    when relevant, so a backend-only run keeps the short 7-stage pipeline."""
+    stages = list(BASE_STAGES)
+    if ui:
+        idx = [s[0] for s in stages].index("stories") + 1
+        stages.insert(idx, DESIGN_STAGE)
+    if deploy:
+        stages.append(IAC_STAGE)
+    return stages
+
+
+def state_template(mode: str, stack: str, target: str, ui: bool, deploy: bool) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     intake_artifact = "00-INTAKE.md" if mode == "greenfield" else "00-CODEBASE-MAP.md"
+    stages = build_stages(ui, deploy)
     rows = "\n".join(
         f"| {name} | {art if name != 'intake' else intake_artifact} | pending |"
-        for name, art in STAGES
+        for name, art in stages
     )
+    gate_lines = "\n".join(f"  {name}: pending" for name, _ in stages)
     return f"""# SDLC Harness — State
 
 <!-- MACHINE-READABLE BLOCK: skills/hooks/eval read these keys. Do not remove. -->
 ```yaml
 mode: {mode}            # greenfield | brownfield
-stack: {stack}          # eval toolchain selector: python | js
+stack: {stack}          # eval toolchain selector: python | js | go | java | rust | ruby | (custom via eval.config.json)
+ui: {str(ui).lower()}              # true => project has a UI: adds the design stage + ux scoring
+deploy: {str(deploy).lower()}          # true => project has a deploy target: adds the iac stage + deployment gate
 target: {target}
 current_stage: intake
 created: {now}
 gates:
-  intake: pending
-  prd: pending
-  stories: pending
-  trd: pending
-  implement: pending
-  test: pending
-  review: pending
+{gate_lines}
 ```
 
 ## Pipeline
@@ -57,7 +69,7 @@ gates:
 {rows}
 
 ## Log
-- {now} — harness initialized (mode={mode}, stack={stack})
+- {now} — harness initialized (mode={mode}, stack={stack}, ui={str(ui).lower()}, deploy={str(deploy).lower()})
 """
 
 
@@ -66,7 +78,10 @@ def main() -> int:
     p.add_argument("--target", required=True)
     p.add_argument("--mode", required=True, choices=["greenfield", "brownfield"])
     p.add_argument("--stack", default="python",
-                   help="eval toolchain selector (any string; python/js built in, others via eval.config.json)")
+                   help="eval toolchain selector (any string; python/js/go/java/rust/ruby built in, others via eval.config.json)")
+    p.add_argument("--ui", action="store_true", help="project has a UI (adds the design stage + ux scoring)")
+    p.add_argument("--deploy", action="store_true",
+                   help="project has a deploy target (adds the iac stage + deployment gate)")
     p.add_argument("--force", action="store_true")
     a = p.parse_args()
 
@@ -80,7 +95,7 @@ def main() -> int:
         return 0
 
     with open(state_path, "w", encoding="utf-8") as f:
-        f.write(state_template(a.mode, a.stack, os.path.abspath(a.target)))
+        f.write(state_template(a.mode, a.stack, os.path.abspath(a.target), a.ui, a.deploy))
     if not os.path.exists(audit_path):
         open(audit_path, "a", encoding="utf-8").close()
 

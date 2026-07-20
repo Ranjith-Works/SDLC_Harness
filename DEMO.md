@@ -1,22 +1,24 @@
 # SDLC Harness — Walkthrough
 
-This ties the `sdlc` plugin to two worked, end-to-end runs. The point: a **reusable harness**
-that drives *any* project through PRD → Stories → TRD → Code → Tests → weighted-eval Review,
-with file artifacts and human tollgates — proven on both a greenfield build and a brownfield
-feature.
+This ties the `sdlc` plugin to three worked, end-to-end runs. The point: a **reusable harness**
+that drives *any* project through PRD → Stories → [UX design] → TRD → Code → Tests →
+weighted-eval Review → [IaC/CI-CD], with file artifacts and human tollgates — proven on a
+greenfield build, a brownfield feature, and a full-stack app that exercises the v1.2 UI/UX, NFR,
+and IaC/deployment-gate dimensions.
 
 ## 1. What was built
 
 **A Claude Code plugin** at `Downloads\sdlc-harness` — one versioned, namespaced unit that
 drops into any repo via `claude --plugin-dir`:
 
-- **10 skills** (`/sdlc:start … /sdlc:review … /sdlc:gate … /sdlc:status`) — the pipeline.
-- **4 sub-agents** — `codebase-analyzer` (brownfield, read-only), `implementer`,
-  `test-author`, `reviewer`.
-- **3 governance hooks** — commit blocked until review passes; artifact structural validation;
-  audit log of stage/subagent transitions.
-- **A runnable weighted eval** (`scripts/eval_harness.py`) — 100 points, hard gates, versioned
-  `results.json`, regression compare. The showpiece.
+- **12 skills** (`/sdlc:start … /sdlc:design … /sdlc:review … /sdlc:iac … /sdlc:gate …`) — the pipeline.
+- **5 sub-agents** — `codebase-analyzer` (brownfield, read-only), `implementer`,
+  `test-author`, `reviewer`, `deploy-author` (IaC/CI-CD).
+- **4 governance hooks** — commit blocked until review passes; **deploy blocked until the
+  deployment gate passes**; artifact structural validation; audit log of transitions.
+- **A runnable weighted eval** (`scripts/eval_harness.py`) — normalized /100 over the criteria
+  that apply (nine always-on + conditional `ux`/`iac`), hard gates, versioned `results.json`,
+  regression compare. The showpiece.
 - **Guardrails** (`CLAUDE.md`) — build only from artifacts, no invented APIs, no secrets/PII,
   no new deps without asking, human approval at every gate.
 
@@ -70,6 +72,25 @@ pytest + TestClient**.
 - The one new dependency (pytest, dev-only — the repo had no tests) was **disclosed and
   flagged**, per the "no new deps without asking" guardrail.
 
+## 4b. Full-stack run (v1.2) — Pulse team status board
+
+`Downloads\pulse-fullstack-demo`. Greenfield, **UI + deploy** → the full v1.2 pipeline including
+`/sdlc:design` and `/sdlc:iac`. Stack: **Python · Flask · vanilla-JS SPA · Docker + Terraform ·
+GitHub Actions**.
+
+- Full artifact chain in `pulse-fullstack-demo\harness\`: `01-PRD (3 FRs, 3 numbered NFRs) →
+  02-USER-STORIES → 04-UX-SPEC (screens, all states, a11y, tokens) → 03-TRD (incl. Non-Functional
+  Design + Deployment & Infrastructure) → 05-TEST-REPORT → 06-REVIEW → 07-DEPLOY`.
+- Code: `app.py` (Flask API, in-memory, validated), `web/index.html` (accessible SPA with
+  loading/empty/error/success states), `infra/Dockerfile` + `infra/main.tf` (pinned, non-root,
+  sensitive vars), `.github/workflows/ci.yml` (test → eval → deploy, deploy gated on the first two).
+- **All four VP asks exercised:** UI/UX (visual/a11y `ux` dimension), IaC/CI-CD with a deployment
+  gate, NFR review (availability/performance/reliability + NFR→TRD traceability), and stack-agnostic
+  scoring (`ux`/`iac` mechanical checks plugged in via `eval.config.json`).
+- **Tests: 5/5 pass; coverage 96%.** **Review: PASS — 99.7/100** across all **11** dimensions
+  (nfr, ux, iac all 100%). The deployment hook blocks `terraform apply`/`docker push` until both
+  `gates.review` and `gates.iac` are approved.
+
 ## 5. How to reproduce (fresh session = the real reusability check)
 
 ```text
@@ -81,18 +102,20 @@ pytest + TestClient**.
 #  /sdlc:start  ->  intake  ->  /sdlc:prd  ->  gate  ->  stories  ->  gate  -> ...
 #  ... -> /sdlc:trd -> gate -> /sdlc:implement -> gate -> /sdlc:test -> gate -> /sdlc:review
 
-# re-run either eval directly:
+# re-run any eval directly:
 python sdlc-harness\scripts\eval_harness.py --target url-shortener --src app
 python sdlc-harness\scripts\eval_harness.py --target ticket-intelligence-brownfield-demo --src api
+python sdlc-harness\scripts\eval_harness.py --target pulse-fullstack-demo
 ```
 
 ## 6. Scorecard at a glance
 
-| Run | Tests | Security (hard gate) | Secrets (hard gate) | Weighted total | Verdict |
-|---|---|---|---|---|---|
-| Fixture (self-test) | 3/3 | clean | clean | 95.5 | PASS |
-| Greenfield — URL shortener | 13/13 | 0 high | clean | **98.6** | PASS |
-| Brownfield — /metrics | 6/6 | 0 high | clean | **98.3** | PASS |
+| Run | Tests | Security (hard gate) | Secrets (hard gate) | Dimensions | Weighted total | Verdict |
+|---|---|---|---|---|---|---|
+| Fixture (self-test) | 3/3 | clean | clean | base | 95.5 | PASS |
+| Greenfield — URL shortener | 13/13 | 0 high | clean | base | **98.6** | PASS |
+| Brownfield — /metrics | 6/6 | 0 high | clean | base | **98.3** | PASS |
+| Full-stack (v1.2) — Pulse | 5/5 | 0 high | clean | +nfr +ux +iac (11) | **99.7** | PASS |
 
 Every stage produced a reviewable file, every transition required human approval, and the
 final gate is enforced in code — un-reviewed work cannot be committed.

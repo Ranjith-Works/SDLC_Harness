@@ -8,8 +8,9 @@ description: Show the current SDLC run status from harness/STATE.md — mode, st
 ## Steps
 1. Read `harness/STATE.md` (and list which artifacts in `harness/` exist).
 2. Print a compact summary:
-   - **Mode / Stack / Target**
+   - **Mode / Stack / Target** (and **UI / Deploy** flags — they add the `design` / `iac` stages).
    - **Pipeline table:** stage | artifact | gate status (pending/approved) | exists?
+     (includes `design` when `ui: true` and `iac` when `deploy: true`).
    - **Current stage** and the **next command** to run.
 3. If a `harness/results.json` exists, show the latest verdict + total and the last regression
    delta.

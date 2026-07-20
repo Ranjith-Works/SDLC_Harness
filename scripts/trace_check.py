@@ -4,6 +4,7 @@
 Verifies the ID linkage across the document chain WITHOUT any LLM judgment:
   - every PRD functional requirement (FR-#) is referenced by at least one user story
   - every user story (US-#) appears in the TRD story -> implementation map
+  - every PRD non-functional requirement (NFR-#) is addressed in the TRD
 
 Returns per-check Booleans + an overall fraction. Deterministic: same artifacts in,
 same result out. Used by eval_harness.py (Traceability criterion) and usable from /sdlc:gate.
@@ -36,14 +37,18 @@ def check(target: str) -> dict:
     stories = _read(os.path.join(h, "02-USER-STORIES.md"))
     trd = _read(os.path.join(h, "03-TRD.md"))
 
-    prd_frs = sorted(set(re.findall(r"FR-\d+", prd)), key=_numkey)
-    story_frs = set(re.findall(r"FR-\d+", stories))
-    story_us = sorted(set(re.findall(r"US-\d+", stories)), key=_numkey)
-    trd_us = set(re.findall(r"US-\d+", trd))
+    # FR-# refs must exclude NFR-# matches (NFR-1 contains "R-1" but not "FR-1"; the \b guards below
+    # anchor on the full token so FR/NFR never collide).
+    prd_frs = sorted(set(re.findall(r"\bFR-\d+", prd)), key=_numkey)
+    story_frs = set(re.findall(r"\bFR-\d+", stories))
+    story_us = sorted(set(re.findall(r"\bUS-\d+", stories)), key=_numkey)
+    trd_us = set(re.findall(r"\bUS-\d+", trd))
+    prd_nfrs = sorted(set(re.findall(r"\bNFR-\d+", prd)), key=_numkey)
+    trd_nfrs = set(re.findall(r"\bNFR-\d+", trd))
 
-    if not prd_frs and not story_us:
+    if not prd_frs and not story_us and not prd_nfrs:
         return {"skipped": True, "frac": 0.0, "passed": 0, "total": 0,
-                "detail": "no FR/US ids found in artifacts", "checks": []}
+                "detail": "no FR/US/NFR ids found in artifacts", "checks": []}
 
     checks = []
     for fr in prd_frs:
@@ -52,17 +57,20 @@ def check(target: str) -> dict:
     for us in story_us:
         checks.append({"id": us, "rule": "US present in TRD story->impl map",
                        "pass": us in trd_us})
+    for nfr in prd_nfrs:
+        checks.append({"id": nfr, "rule": "NFR addressed in TRD",
+                       "pass": nfr in trd_nfrs})
 
     total = len(checks)
     passed = sum(1 for c in checks if c["pass"])
     frac = 1.0 if total == 0 else passed / total
     missing = [c["id"] for c in checks if not c["pass"]]
-    detail = f"{passed}/{total} links intact (FR->story, US->TRD)"
+    detail = f"{passed}/{total} links intact (FR->story, US->TRD, NFR->TRD)"
     if missing:
         detail += f"; missing: {', '.join(missing[:6])}"
     return {"skipped": False, "frac": frac, "passed": passed, "total": total,
             "detail": detail, "checks": checks,
-            "counts": {"prd_frs": len(prd_frs), "story_us": len(story_us)}}
+            "counts": {"prd_frs": len(prd_frs), "story_us": len(story_us), "prd_nfrs": len(prd_nfrs)}}
 
 
 def main() -> int:

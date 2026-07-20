@@ -32,14 +32,23 @@ REQUIRED = {
         "API / Interface Design", "Story -> Implementation Map", "Testing Strategy",
         "Security & Guardrails",
     ],
+    "uxspec": [
+        "Screens", "Component Inventory", "States", "Accessibility", "Responsive",
+    ],
+    "deploy": [
+        "Environments", "Infrastructure (IaC)", "CI/CD Pipeline",
+        "Deployment Gates", "Rollback", "Observability",
+    ],
     "review": ["Verdict", "Weighted Scorecard", "Hard Gates", "Findings"],
 }
 
-# Map filename fragments -> artifact kind.
+# Map filename fragments -> artifact kind. More specific fragments first (first match wins).
 KIND_BY_NAME = [
     ("01-prd", "prd"), ("prd", "prd"),
     ("02-user-stories", "stories"), ("user-stories", "stories"), ("stories", "stories"),
     ("03-trd", "trd"), ("trd", "trd"),
+    ("04-ux-spec", "uxspec"), ("ux-spec", "uxspec"), ("uxspec", "uxspec"),
+    ("07-deploy", "deploy"), ("deploy", "deploy"),
     ("06-review", "review"), ("review", "review"),
 ]
 
@@ -93,7 +102,11 @@ def content_rules(kind: str, text: str) -> list[dict]:
 
     if kind == "prd":
         return [
-            {"rule": "declares numbered functional requirements (FR-#)", "pass": has(r"FR-\d+")},
+            {"rule": "declares numbered functional requirements (FR-#)", "pass": has(r"\bFR-\d+")},
+            {"rule": "declares numbered non-functional requirements (NFR-#)", "pass": has(r"\bNFR-\d+")},
+            {"rule": "NFRs name measurable targets (latency/availability/throughput/RTO...)",
+             "pass": has(r"latency|availabilit|uptime|throughput|\bp9\d|\brto\b|\brpo\b|"
+                         r"requests?\s*per|\brps\b|concurrent|response time|error rate")},
         ]
     if kind == "stories":
         return [
@@ -106,6 +119,22 @@ def content_rules(kind: str, text: str) -> list[dict]:
             {"rule": "has a Story -> Implementation map", "pass": has(r"story\s*->|story\s*to\s*impl|implementation map")},
             {"rule": "references user stories (US-#)", "pass": has(r"US-\d+")},
             {"rule": "specifies a test command/strategy", "pass": has(r"test")},
+        ]
+    if kind == "uxspec":
+        return [
+            {"rule": "enumerates non-happy states (loading/empty/error)",
+             "pass": has(r"loading") and has(r"empty") and has(r"error")},
+            {"rule": "specifies accessibility requirements (keyboard/contrast/aria/wcag)",
+             "pass": has(r"keyboard|contrast|aria|wcag|screen reader|a11y")},
+            {"rule": "references user stories (US-#)", "pass": has(r"\bUS-\d+")},
+        ]
+    if kind == "deploy":
+        return [
+            {"rule": "defines a rollback path", "pass": has(r"rollback|roll back|revert")},
+            {"rule": "defines deployment gates", "pass": has(r"gate")},
+            {"rule": "names an IaC tool/mechanism (terraform/docker/k8s/helm/cloudformation/...)",
+             "pass": has(r"terraform|docker|kubernetes|k8s|helm|cloudformation|pulumi|ansible|bicep")},
+            {"rule": "addresses non-functional targets from the PRD (NFR-#)", "pass": has(r"\bNFR-\d+")},
         ]
     if kind == "review":
         return [

@@ -1,10 +1,10 @@
 {
   "name": "sdlc",
-  "version": "1.1.0",
-  "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> TRD -> Implementation -> Tests -> weighted-eval Review, with file artifacts, human tollgates, sub-agents, hooks, and a runnable scorer.",
+  "version": "1.2.0",
+  "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> UX design -> TRD -> Implementation -> Tests -> weighted-eval Review -> IaC/CI-CD, with file artifacts, human tollgates (incl. a deployment gate), sub-agents, hooks, NFR + UI/UX + IaC review dimensions, and a stack-agnostic runnable scorer.",
   "author": { "name": "Ranjith-Works" },
   "license": "UNLICENSED",
   "homepage": "https://github.com/Ranjith-Works/SDLC_Harness",
   "repository": "https://github.com/Ranjith-Works/SDLC_Harness",
-  "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline"]
+  "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline", "iac", "cicd", "ux", "nfr", "stack-agnostic"]
 }

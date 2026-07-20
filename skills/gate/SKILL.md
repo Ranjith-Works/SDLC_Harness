@@ -10,16 +10,20 @@ Only the user invokes this. It is the human-in-the-loop tollgate.
 
 ## Steps
 1. Read `harness/STATE.md`; determine `current_stage` and its artifact.
-2. **Validate structure** (for doc artifacts PRD/US/TRD/REVIEW):
+2. **Validate structure** (for doc artifacts PRD/US/TRD/UX-SPEC/DEPLOY/REVIEW):
    `python <plugin>/scripts/validate_artifact.py "<artifact path>"`
    (hand the user the command if sandbox Python fails). Report missing sections / stub warnings.
 3. **Validate content** yourself: does the artifact actually satisfy this stage's intent?
-   - prd: FRs atomic & testable; goals/non-goals present.
+   - prd: FRs atomic & testable; NFRs numbered (NFR-#) with measurable targets; goals/non-goals present.
    - stories: every FR covered; ACs concrete.
-   - trd: story->impl map complete; test command specified.
+   - design (ui only): every screen traced to a US-#; all states (loading/empty/error/success) and
+     a11y requirements specified.
+   - trd: story->impl map complete; test command specified; each NFR-# addressed in Non-Functional Design.
    - implement: files exist; scoped to stories.
-   - test: ACs mapped to tests; report present.
+   - test: ACs mapped to tests; report present; for UI, screens+states have visual/a11y coverage.
    - review: verdict computed; PASS requires ≥80 and no hard gate.
+   - iac (deploy only): IaC idempotent, versions pinned, secrets via vault, rollback + gates defined;
+     the pipeline runs the harness gates before deploy. Approving this is the DEPLOYMENT gate.
 4. Present a short validation summary and the go/no-go recommendation.
 5. **Ask the user to approve.** Only on explicit approval, set `gates.<stage>: approved` in
    `harness/STATE.md` and append a line to the STATE Log. If not approved, leave `pending` and

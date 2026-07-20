@@ -6,15 +6,15 @@
   },
   "metadata": {
     "description": "Marketplace hosting the sdlc SDLC-harness plugin for Claude Code.",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "plugins": [
     {
       "name": "sdlc",
       "source": "./",
-      "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> TRD -> Implementation -> Tests -> weighted-eval Review, with file artifacts, human tollgates, sub-agents, hooks, and a runnable scorer.",
-      "version": "1.1.0",
-      "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline"]
+      "description": "SDLC harness: drives any project (greenfield or brownfield) through PRD -> User Stories -> UX design -> TRD -> Implementation -> Tests -> weighted-eval Review -> IaC/CI-CD, with file artifacts, human tollgates (incl. a deployment gate), sub-agents, hooks, NFR + UI/UX + IaC review dimensions, and a stack-agnostic runnable scorer.",
+      "version": "1.2.0",
+      "keywords": ["sdlc", "harness", "prd", "trd", "eval", "review", "pipeline", "iac", "cicd", "ux", "nfr", "stack-agnostic"]
     }
   ]
 }
